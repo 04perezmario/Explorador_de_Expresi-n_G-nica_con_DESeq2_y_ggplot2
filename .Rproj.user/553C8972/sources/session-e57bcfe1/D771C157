@@ -1,0 +1,26 @@
+{
+    "id": "D771C157",
+    "path": "~/Desktop/ShinyAPPMario/R/shiny_app.R",
+    "project_path": "R/shiny_app.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1740042929422.0,
+    "source_on_save": false,
+    "relative_order": 4,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "110,27",
+        "scrollLine": "99"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1740134706,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1740134706664,
+    "read_only": false,
+    "read_only_alternatives": []
+}
