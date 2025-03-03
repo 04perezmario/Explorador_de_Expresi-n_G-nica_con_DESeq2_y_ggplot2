@@ -11,6 +11,7 @@ source("R/shiny_app.R")
 
 # Cargar el paquete Shiny
 library(shiny)
+library(EnhancedVolcano)
 
 # Ejecutar la aplicación Shiny
 shinyApp(ui = ui, server = server)

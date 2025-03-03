@@ -2,6 +2,7 @@
 
 library(DESeq2)
 library(dplyr)
+library(EnhancedVolcano)
 
 # Función para procesar Read Counts
 process_readcounts <- function(file) {

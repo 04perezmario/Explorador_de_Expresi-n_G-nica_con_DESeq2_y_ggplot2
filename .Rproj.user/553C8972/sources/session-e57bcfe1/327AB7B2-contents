@@ -1,0 +1,293 @@
+# Cargar las librerías necesarias
+library(DESeq2)   # Para análisis de expresión diferencial
+library(ggplot2)  # Para visualización de datos
+library(magrittr) # Para operaciones encadenadas
+library(ggpubr)   # Para gráficos avanzados
+library(tidyr)    # Para transformar datos
+library(dplyr)    # Para manipulación de datos
+
+# ================================
+# 1️⃣ Establecer directorio de trabajo
+# ================================
+setwd("~/out/petits/STAR_mapped")  # Se establece la carpeta de trabajo donde están los archivos
+
+# ================================
+# 2️⃣ Leer archivo de resultados de featureCounts
+# ================================
+readcounts <- read.table("featurecounts_resultados.txt", header = TRUE)
+
+# ================================
+# 3️⃣ Modificar nombres de filas y columnas
+# ================================
+# Usar los IDs de los genes como nombres de fila (reemplazando guiones por puntos)
+row.names(readcounts) <- gsub("-", ".", readcounts$Geneid)
+
+# Eliminar partes innecesarias de los nombres de las columnas
+colnames(readcounts) <- gsub("X.home.labs.lslab.studentlslab.out.petits.STAR_mapped.|_Aligned.sortedByCoord.out.bam|OVCAR3_", "", colnames(readcounts))
+
+# Eliminar las primeras 6 columnas (contienen información de genes, no lecturas)
+readcounts <- readcounts[, -c(1:6)]
+
+# Renombrar columnas con nombres más significativos
+names(readcounts) <- c("DMSO_1", "DMSO_3", "NirapR_1", "NirapR_3", "OlapR_1", "OlapR_3")
+
+# ================================
+# 4️⃣ Inspeccionar los datos
+# ================================
+View(readcounts)  # Ver los datos en una ventana interactiva
+str(readcounts)   # Ver la estructura del data frame
+head(names(readcounts)) # Ver nombres de las columnas
+
+# ================================
+# 5️⃣ Consultar genes específicos
+# ================================
+# MYC está relacionado con el cáncer y la proliferación celular
+readcounts["MYC",]
+
+# BRCA2 está asociado a cáncer de mama y ovario
+readcounts["BRCA2",]
+
+# ================================
+# 6️⃣ Crear DataFrame de condiciones de muestras
+# ================================
+sample_info <- DataFrame(condition = gsub("_[0-9]+", "", names(readcounts)),
+                         row.names = names(readcounts))
+
+# Ver estructura de las condiciones
+str(sample_info)
+sample_info
+
+# ================================
+# 7️⃣ Crear DESeqDataSet
+# ================================
+DESeq.ds <- DESeqDataSetFromMatrix(countData = readcounts,
+                                   colData = sample_info,
+                                   design = ~ condition)
+
+# Ver DESeqDataSet
+DESeq.ds
+
+# ================================
+# 8️⃣ Inspeccionar las lecturas
+# ================================
+# Ver las primeras filas de los datos de conteo
+head(counts(DESeq.ds))
+
+# Ver el total de lecturas por muestra
+colSums(counts(DESeq.ds))
+
+# ================================
+# 9️⃣ Visualizar tamaños de bibliotecas
+# ================================
+# Crear data frame con tamaños de biblioteca
+library_sizes <- colSums(counts(DESeq.ds))
+library_sizes_df <- data.frame(
+  Sample = names(library_sizes),
+  Library_Size = library_sizes
+)
+
+# Gráfico de barras de tamaños de biblioteca
+ggplot(library_sizes_df, aes(x = Sample, y = Library_Size)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  labs(title = "Tamaño de las bibliotecas", 
+       x = "Muestras", 
+       y = "Número de lecturas") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+# ================================
+# 🔟 Realizar análisis diferencial
+# ================================
+DESeq.ds <- DESeq(DESeq.ds)
+
+# ================================
+# 1️⃣1️⃣ Ver resultados del análisis diferencial
+# ================================
+res <- results(DESeq.ds)
+res$symbol<- rownames(res)
+write.table(res[,c(7,1:6)], "DSEQ_Results4.txt", quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+
+write.table(readcounts,"readcounts.txt",quote=FALSE, sep="\t")
+
+normalized_counts <- data.frame(counts(DESeq.ds, normalized=TRUE))
+normalized_counts$symbol<- rownames(normalized_counts)
+write.table(normalized_counts[,c(dim(normalized_counts)[2],c(1:(dim(normalized_counts)[2]-1)))],"normcounts.txt",quote=FALSE, sep="\t",row.names = FALSE, col.names = TRUE)
+write.table(sample_info,"sample_sheet.txt",quote=FALSE, sep="\t")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+head(res)
+
+# Filtrar genes con expresión diferencial significativa (p-ajustada < 0.05)
+resSig <- res[which(res$padj < 0.05),]
+head(resSig)
+
+# ================================
+# 1️⃣2️⃣ Comparación de expresión de genes específicos
+# ================================
+mygene <- "MYC"
+
+# Expresión de MYC en diferentes muestras (boxplot)
+readcounts[mygene,] %>% 
+  boxplot(
+    main = paste0(mygene, "_expression"),
+    col = "skyblue",
+    las = 2,
+    ylab = "Número de lecturas",
+    xlab = "Muestras"
+  )
+
+# Comparación de expresión con DESeq2
+plotCounts(DESeq.ds, gene = mygene, intgroup = "condition") 
+
+# ================================
+# 1️⃣3️⃣ Comparación entre condiciones con test estadístico
+# ================================
+# Transformar los datos en formato adecuado para ggplot
+mygene.df <- readcounts[mygene,] %>%
+  as.data.frame() %>%
+  t() %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("Sample")
+
+# Agregar la condición experimental (DMSO, NirapR, OlapR)
+mygene.df$Condition <- gsub("_[0-9]+", "", mygene.df$Sample)
+
+# Renombrar columna de expresión
+colnames(mygene.df)[2] <- "Expression"
+
+# Gráfico de boxplot con comparaciones estadísticas
+ggboxplot(mygene.df, x = "Condition", y = "Expression",
+          color = "Condition", palette = "jco") +
+  stat_compare_means(method = "t.test", comparisons = list(
+    c("DMSO", "NirapR"),
+    c("DMSO", "OlapR"),
+    c("NirapR", "OlapR")
+  )) +
+  theme_minimal() +
+  ggtitle(paste("Expresión de", mygene))
+
+
+
+# Instalar BiocManager si no está presente
+if (!require("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+# Instalar los paquetes de Bioconductor necesarios
+BiocManager::install(c("debrowser", "limma", "edgeR", "clusterProfiler", "sva", 
+                       "RCurl", "enrichplot", "pathview", "apeglm", "ashr", 
+                       "GenomicRanges", "IRanges", "S4Vectors", "SummarizedExperiment", 
+                       "AnnotationDbi", "DOSE", "org.Hs.eg.db", "org.Mm.eg.db"))
+
+# Instalar paquetes adicionales de CRAN
+install.packages(c("shiny", "jsonlite", "shinyjs", "shinydashboard", "shinyBS", 
+                   "gplots", "DT", "ggplot2", "RColorBrewer", "annotate", 
+                   "stringi", "reshape2", "plotly", "heatmaply", "Harman", 
+                   "colourpicker"))
+
+# Cargar la librería DEBrowser
+library(debrowser)
+
+# Verificar la documentación del paquete
+browseVignettes("debrowser")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Cargar las librerías necesarias
+library(shiny)
+library(DESeq2)
+library(ggplot2)
+
+# Establecer directorio de trabajo y cargar los datos (ajustar a tu entorno)
+setwd("~/out/petits/STAR_mapped")
+readcounts <- read.table("featurecounts_resultados.txt", header = TRUE)
+
+# Modificar los nombres de las filas y columnas
+row.names(readcounts) <- gsub("-", ".", readcounts$Geneid)
+colnames(readcounts) <- gsub("X.home.labs.lslab.studentlslab.out.petits.STAR_mapped.|_Aligned.sortedByCoord.out.bam|OVCAR3_", "", colnames(readcounts))
+readcounts <- readcounts[, -c(1:6)]
+names(readcounts) <- c("DMSO_1", "DMSO_3", "NirapR_1", "NirapR_3", "OlapR_1", "OlapR_3")
+
+# Crear la interfaz de usuario de la aplicación Shiny
+ui <- fluidPage(
+  
+  # Título de la aplicación
+  titlePanel("Análisis de Expresión de Genes"),
+  
+  # Barra lateral para la entrada del usuario
+  sidebarLayout(
+    sidebarPanel(
+      textInput("gene", "Introduce el nombre del gen:", value = "MYC"),  # Entrada para el nombre del gen
+      actionButton("update", "Actualizar Gráfico")  # Botón para actualizar el gráfico
+    ),
+    
+    # Área principal para mostrar el plot
+    mainPanel(
+      plotOutput("genePlot")  # Mostrar el gráfico del gen
+    )
+  )
+)
+
+# Definir la lógica del servidor
+server <- function(input, output) {
+  
+  # Función reactiva para generar el plot cuando el usuario ingresa un gen
+  output$genePlot <- renderPlot({
+    
+    req(input$gene)  # Asegurarse de que hay un gen seleccionado
+    
+    # Verificar si el gen existe en los datos
+    if(input$gene %in% rownames(readcounts)) {
+      
+      # Generar el boxplot para el gen específico
+      boxplot(readcounts[input$gene,], 
+              main = paste0(input$gene, "_expression"),
+              col = "skyblue",
+              las = 2,
+              ylab = "Número de lecturas",
+              xlab = "Muestras")
+      
+    } else {
+      # Mensaje de error si el gen no se encuentra en los datos
+      plot.new()
+      text(0.5, 0.5, paste("El gen", input$gene, "no se encuentra en los datos."), cex = 1.5)
+    }
+  })
+}
+
+# Correr la aplicación
+shinyApp(ui = ui, server = server)

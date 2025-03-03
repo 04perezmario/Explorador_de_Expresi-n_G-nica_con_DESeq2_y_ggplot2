@@ -1,6 +1,7 @@
 # visualization.R
 library(ggplot2)
-
+library(EnhancedVolcano)
+  
 # Función para visualizar el tamaño de las bibliotecas
 plot_library_sizes <- function(deseq_dataset) {
   library_sizes <- colSums(counts(deseq_dataset))
